@@ -1,57 +1,105 @@
-'''This program applies various data mining techniques on NewYork city collisons data and infers some information.
-Author : Shashank Rudroju
-Email : sr1632@rit.edu'''
-
 from math import isnan
 from sklearn.cluster import KMeans
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import collections
 
 def main():
-    df = pd.read_csv('NYPD_Motor_Vehicle_Collisions.csv', low_memory=False)  # read the input csv file
+    df = pd.read_csv('NYPD_Motor_Vehicle_Collisions1.csv', low_memory=False)  # read the input csv file
+    print('Before cleaning')
     print(df.shape)
     #print(type(df['LOCATION'].values))
-    df = df[pd.notnull(df['DATE'])] # Removing records that doesnt have date field
-    df = df[pd.notnull(df['LATITUDE'])] #Removing records that doesnt have date field
-	#Merging some columns into one
+    df = df[pd.notnull(df['DATE'])]
+    df = df[pd.notnull(df['LATITUDE'])]
+    df = df[df['LATITUDE'] > 1]
+    df = df[df['LATITUDE'] < 41]
+    df = df[df['LONGITUDE'] > -74.4]
+    df = df[df['LONGITUDE'] < -70]
     df['PERSON_CASUALITIES'] = df['NUMBER OF PERSONS INJURED'] + df['NUMBER OF PERSONS KILLED']
     df['PEDESTRIAN_CASUALITIES'] = df['NUMBER OF PEDESTRIANS INJURED'] + df['NUMBER OF PEDESTRIANS KILLED']
     df['CYCLIST_CASUALITIES'] = df['NUMBER OF CYCLIST INJURED'] + df['NUMBER OF CYCLIST KILLED']
     df['MOTORIST_CASUALITIES'] = df['NUMBER OF MOTORIST INJURED'] + df['NUMBER OF MOTORIST KILLED']
     df['TOTAL CASUALITIES'] = df['PERSON_CASUALITIES']+df['PEDESTRIAN_CASUALITIES']+df['CYCLIST_CASUALITIES']+df['MOTORIST_CASUALITIES']
-	# Dropping irrelevant columns
     df = df.drop(['NUMBER OF PERSONS INJURED', 'NUMBER OF PERSONS KILLED','NUMBER OF PEDESTRIANS INJURED','NUMBER OF PEDESTRIANS KILLED',
                      'NUMBER OF CYCLIST INJURED','NUMBER OF CYCLIST KILLED','NUMBER OF MOTORIST INJURED','NUMBER OF MOTORIST KILLED',
                      'CONTRIBUTING FACTOR VEHICLE 2','CONTRIBUTING FACTOR VEHICLE 3','CONTRIBUTING FACTOR VEHICLE 4','CONTRIBUTING FACTOR VEHICLE 5',
                      'VEHICLE TYPE CODE 2','VEHICLE TYPE CODE 3','VEHICLE TYPE CODE 4','VEHICLE TYPE CODE 5'], axis = 1)
+    df['Year'] = df['DATE'].str[-4:]
+    df['Month'] = df['DATE'].str[0:2]
+    df['Hour'] = df['TIME'].str[0:-3].astype(int)
+    df['Minutes'] = df['TIME'].str[-2:].astype(int)
+    df['Normalized_Time'] = df['Hour'] * 60 + df['Minutes']
+
+    #plt.plot(df['Normalized_Time'].values)
+    #plt.show()
+    normalized_times = df['Normalized_Time'].values
+    times_count = []
+    flag = 15
+    count = 0
+    sorted_normalized_times = sorted(normalized_times)
+    for time in sorted_normalized_times:
+        if(time <= flag):
+            count+=1
+        else:
+            times_count.append(count)
+            count=0
+            flag = flag+15
+    times_count.append(count)
+    time_slots = []
+
+    for i in range(len(times_count)):
+        hour = str(int(i/4))
+        minute = str((i%4)*15)
+        time_slots.append(hour+':'+minute)
+    print('Times count list :')
+    print(times_count)
+    print('Time slots :')
+    print(time_slots)
+    print(len(time_slots))
+
+    # 15 Minute slots
+    time_slots_map = {}
+    x = np.arange(96)
+    for i in range(len(times_count)):
+        time_slots_map[time_slots[i]] = times_count[i]
+    plt.bar(x, time_slots_map.values(), color='g')
+    plt.xlabel('Time slots')
+    #matplotlib.pyplot
+    plt.title('Accidents in timeslots of 15 minutes')
+    plt.xticks(x,time_slots)
+    plt.xticks(rotation=90)
+    plt.ylabel('Number of accidents')
+    plt.show()
+
+
+
     print('After cleaning')
     print(df.shape)
     print(df.columns)
-	
-	# Visualizing location data
-    x = df['LATITUDE'].values
-    y = df['LONGITUDE'].values
+
+    y = df['LATITUDE'].values
+    x = df['LONGITUDE'].values
+    print(len(x), len(y))
     data = np.array((x, y))
     transformed_data = data.T
-	# Applying KMeans algorithm on the data to get clusters
-    kmeans = KMeans(n_clusters=5, random_state=0).fit(transformed_data)
+    kmeans = KMeans(n_clusters=15, random_state=0).fit(transformed_data)
     print(kmeans.cluster_centers_)
     cluster_map = pd.DataFrame()
     cluster_map['data_index'] = df.index.values
     cluster_map['cluster'] = kmeans.labels_
     i = 0
     for center in kmeans.cluster_centers_:
-        print('Center : [', round(float(center[0]), 2), round(float(center[1]), 2), ']', 'Size of Cluster :',
+        print('Center : [', round(float(center[0]),6), round(float(center[1]),6), ']', 'Size of Cluster :',
               len(cluster_map[cluster_map.cluster == i]))
         i += 1
 
-    plt.xlabel('LATITUDE')
-    plt.ylabel('LONGITUDE')
+    plt.ylabel('LATITUDE')
+    plt.xlabel('LONGITUDE')
     plt.title('ACCIDENTS BY LOCATION')
-    plt.scatter(x, y)
+
+    plt.scatter(x, y,c=kmeans.labels_.astype(float))
     plt.show()
+
 
     # BOROUGHS
     plt.xlabel('Boroughs')
@@ -62,9 +110,6 @@ def main():
     plt.bar(list(boroughs_map.keys()), boroughs_map.values(), color='g')
     plt.show()
 
-    df['Year'] = df['DATE'].str[-4:]
-    df['Month'] = df['DATE'].str[0:2]
-    df['Hour'] = df['TIME'].str[0:-3]
 
     # MONTHLY
     print('Month Counts \n',df['Month'].value_counts())
